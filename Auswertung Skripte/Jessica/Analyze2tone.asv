@@ -1,0 +1,154 @@
+function [EEGtime, dataA, dataMA] = Analyze2tone(channel,fn,toneA, toneMA,ErrTr)
+% ERP waveform around the time of the second tone 
+% checking whether different intensities have effect on waveform
+% SOAs not differentiated
+% motor-correction also not relevant
+% otherwise sameprocedure than for first tone
+
+% input:
+% - channel = channel number or list
+% - fn = subject name/identifier
+% - toneA = list with the intensity of 2.tone for each trial in
+%           auditory-only condition
+% - toneMA = list with the intensity of 2.tone for each trial in
+%            auditory-motor condition
+
+% output:
+% 
+
+
+if nargin<2
+	chanlist=1:1:31; % Number Channels
+else
+	chanlist=channel;
+end
+
+%% parameters
+pre=200; %samples (->1200ms vor Event)
+post=600;%samples (->1200ms nach Event)
+baseline=50; %samples (1200ms bis 1000ms vor Event, also 200ms Epoche ab pre)
+baselinet0pre=50; %start of baseline in samples pre event of interest
+y=15; %Y-Achse
+tpre=-200; %X-Achse ...
+tpost=400;
+[B,A] = cheby2(1,3,[0.00004 0.2]); %0.01Hz-45Hz (250Hz=1)
+bc='epoc'; %Baseline correction method: 'epoc'/'none'/'file'
+
+
+%% Auditory-only (No Press)
+
+load([fn 'NoPress']);
+EEG.data=double(EEG.data);
+
+for z=1:31
+    x=EEG.data(z,:);
+    EEG.data(z,:)=filtfilt(B,A,x);  
+end
+
+
+EEGtime = -pre*2:2:post*2;
+intensities = 72:76;
+clear dataA
+[dataA{1:6,1}] = deal('int\chan','72','73','74','75','76');
+soa.A = dataA;
+n = 0;
+z = 1;
+%for z = 1:length(EEG.event)-3
+while z <= length(EEG.event)-2
+    disp(z)
+    if isempty(ErrTr{3,2}) == 0 & any([ErrTr{3,2}(:,1)]==z)
+        z = ErrTr{3,2}(find(ErrTr{3,2}(:,1)==z),2)+1;
+        %continue
+    end
+    if strcmp(EEG.event(z).type(1:4),'S111')
+        n = n+1;
+%         if n <= length(toneA)
+        i(n)=round(EEG.event(z).latency);
+        tone2 = toneA(n);
+        lds = find(intensities == tone2);% intensity index
+        for zz=chanlist
+            ch_ind = find(chanlist == zz);
+            dataA{1,ch_ind+1} = zz;
+            if i(n)+post <= length(EEG.data(zz,:))
+                dataA{lds+1,ch_ind+1}(size(dataA{lds+1,ch_ind+1},1)+1,:)=EEG.data(zz,i(n)-pre:i(n)+post);
+                soa.A{lds+1,ch_ind+1}(size(dataA{lds+1,ch_ind+1},1)+1,1)=EEG.
+            end
+            if bc=='epoc'
+                dataA{lds+1,ch_ind+1}(size(dataA{lds+1,ch_ind+1},1),:)=dataA{lds+1,ch_ind+1}(size(dataA{lds+1,ch_ind+1},1),:)-mean(dataA{lds+1,ch_ind+1}(size(dataA{lds+1,ch_ind+1},1),pre-baselinet0pre:pre-baselinet0pre+baseline));
+            end
+        end
+%         end
+    end
+    z = z+1;
+end
+
+% last row of each cell entry = mean per loudness and channel
+for ld = 2:size(dataA,1)
+    for ch = 2:size(dataA,2)
+        dataA{ld,ch}(size(dataA{ld,ch},1)+1,:) = mean([dataA{ld,ch}],1);
+    end
+end
+
+
+%% Motor-Auditory (Sound)
+
+clear EEG;
+clear data
+clear dataMA
+load ([fn 'Sound']);
+EEG.data=double(EEG.data);
+
+for z=1:31
+	x=EEG.data(z,:);
+	EEG.data(z,:)=filtfilt(B,A,x);
+end
+
+EEGtime = -pre*2:2:post*2;
+intensities = 72:76;
+[dataMA{1:6,1}] = deal('int/chan','72','73','74','75','76');
+n = 0;
+z = 1;
+%for z = 1:length(EEG.event)
+while z <= length(EEG.event)-2
+    if isempty(ErrTr{3,4}) ~= 1 & any([ErrTr{3,4}(:,1)]==z)
+        z = ErrTr{3,4}(find(ErrTr{3,4}(:,1)==z),2)+1;
+        continue
+    end
+    if strcmp(fn, 'nr08ICA') & z == 1331
+        disp(z)
+        disp('half trial')
+        z = z+1;
+        disp(z)
+    end
+    if strcmp(EEG.event(z).type(1:4),'S111')
+       n = n+1;
+%         if n <= length(toneMA)
+        i(n)=round(EEG.event(z).latency);
+        tone2 = toneMA(n);
+        lds = find(intensities == tone2);% intensity index
+        for zz=chanlist
+            ch_ind = find(chanlist == zz);
+            dataMA{1,ch_ind+1} = zz;
+            if i(n)+post <= length(EEG.data(zz,:))
+                dataMA{lds+1,ch_ind+1}(size(dataMA{lds+1,ch_ind+1},1)+1,:)=EEG.data(zz,i(n)-pre:i(n)+post);
+%             else
+%                 dif = (i(n)+post) - length(EEG.data(zz,:));
+%                 dataMA{lds+1,ch_ind+1}(size(dataMA{lds+1,ch_ind+1},1)+1,:)=horzcat([EEG.data(zz,i(n)-pre:end)],NaN(1,dif));
+            end
+            if bc=='epoc'
+                dataMA{lds+1,ch_ind+1}(size(dataMA{lds+1,ch_ind+1},1),:)=dataMA{lds+1,ch_ind+1}(size(dataMA{lds+1,ch_ind+1},1),:)-mean(dataMA{lds+1,ch_ind+1}(size(dataMA{lds+1,ch_ind+1},1),pre-baselinet0pre:pre-baselinet0pre+baseline));
+            end
+        end
+%         end
+    end
+    z = z+1;
+end
+
+% last row of each cell entry = mean per loudness and channel
+for ld = 2:size(dataMA,1)
+    for ch = 2:size(dataMA,2)
+        dataMA{ld,ch}(size(dataMA{ld,ch},1)+1,:) = mean([dataMA{ld,ch}],1);
+    end
+end
+
+end

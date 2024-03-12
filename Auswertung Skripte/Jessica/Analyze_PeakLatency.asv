@@ -1,0 +1,101 @@
+function [Int] = Analyze_PeakLatency (Nsub, el, pp, EEG_data, crit)
+% Input:
+% - Nsub = number of subjects
+% - el = EEG_data index of electrode
+% - peaks = start + end index of peak interval
+% - EEG_data
+% - crit = criterium: 1 == N1 peak --> min, 2 == P2 peak --> max
+
+% output:
+% Int = struct with 5 conditions (interval, local, peak mean + sem, latency
+% mean + sem
+
+for sb = 1:Nsub
+    Int.A.interval(sb,:) = [EEG_data{el,2}(sb,pp(1):pp(2))];
+    if crit == 1
+        [Int.A.local.value(sb), Int.A.local.index(sb)] = min(Int.A.interval(sb,:));
+    elseif crit == 2
+        [Int.A.local.value(sb), Int.A.local.index(sb)] = max(Int.A.interval(sb,:));
+    end
+    Int.A.local.index(sb) = Int.A.local.index(sb) + pp(1) -1;
+    Int.A.local.latency(sb) = EEG_data{el,7}(1,Int.A.local.index(sb));
+
+    Int.S0.interval(sb,:) = EEG_data{el,10}(sb,pp(1):pp(2));
+    if crit == 1
+        [Int.S0.local.value(sb), Int.S0.local.index(sb)] = min(Int.S0.interval(sb,:));
+    elseif crit == 2
+        [Int.S0.local.value(sb), Int.S0.local.index(sb)] = max(Int.S0.interval(sb,:));
+    end
+    Int.S0.local.index(sb) = Int.S0.local.index(sb) + pp(1) -1;
+    Int.S0.local.latency(sb) = EEG_data{el,7}(1,Int.S0.local.index(sb));
+
+    Int.S5.interval(sb,:) = EEG_data{el,11}(sb,pp(1):pp(2));
+    if crit == 1
+    [Int.S5.local.value(sb), Int.S5.local.index(sb)] = min(Int.S5.interval(sb,:));
+    elseif crit == 2
+    Int.S5.local.index(sb) = Int.S5.local.index(sb) + pp(1) -1;
+    Int.S5.local.latency(sb) = EEG_data{el,7}(1,Int.S5.local.index(sb));
+
+    Int.S2.interval(sb,:) = EEG_data{el,12}(sb,pp(1):pp(2));
+    [Int.S2.local.value(sb), Int.S2.local.index(sb)] = min(Int.S2.interval(sb,:));
+    Int.S2.local.index(sb) = Int.S2.local.index(sb) + pp(1) -1;
+    Int.S2.local.latency(sb) = EEG_data{el,7}(1,Int.S2.local.index(sb));
+
+    Int.S6.interval(sb,:) = EEG_data{el,13}(sb,pp(1):pp(2));
+    [Int.S6.local.value(sb), Int.S6.local.index(sb)] = min(Int.S6.interval(sb,:));
+    Int.S6.local.index(sb) = Int.S6.local.index(sb) + pp(1) -1;
+    Int.S6.local.latency(sb) = EEG_data{el,7}(1,Int.S6.local.index(sb));
+
+    % Varianzkorrektur
+    Int.Varianzkorrektur.PeakSM(sb) = ...
+        mean([Int.A.local.value(sb), Int.S0.local.value(sb), ...
+        Int.S5.local.value(sb), Int.S2.local.value(sb), Int.S6.local.value(sb)]);
+    Int.Varianzkorrektur.PeakGM = mean(Int.Varianzkorrektur.PeakSM);
+
+    Int.Varianzkorrektur.LatSM(sb) = ...
+        mean([Int.A.local.latency(sb), Int.S0.local.latency(sb), ...
+        Int.S5.local.latency(sb), Int.S2.local.latency(sb), Int.S6.local.latency(sb)]);
+    Int.Varianzkorrektur.LatGM = mean(Int.Varianzkorrektur.LatSM);
+end
+
+Int.Varianzkorrektur.PeakSMminGM = Int.Varianzkorrektur.PeakSM - Int.Varianzkorrektur.PeakGM;
+Int.Varianzkorrektur.LatSMminGM = Int.Varianzkorrektur.LatSM - Int.Varianzkorrektur.LatGM;
+
+Int.A.local.peakcorr = Int.A.local.value - Int.Varianzkorrektur.PeakSMminGM;
+Int.A.local.latcorr = Int.A.local.latency - Int.Varianzkorrektur.LatSMminGM;
+Int.S0.local.peakcorr = Int.S0.local.value - Int.Varianzkorrektur.PeakSMminGM;
+Int.S0.local.latcorr = Int.S0.local.latency - Int.Varianzkorrektur.LatSMminGM;
+Int.S5.local.peakcorr = Int.S5.local.value - Int.Varianzkorrektur.PeakSMminGM;
+Int.S5.local.latcorr = Int.S5.local.latency - Int.Varianzkorrektur.LatSMminGM;
+Int.S2.local.peakcorr = Int.S2.local.value - Int.Varianzkorrektur.PeakSMminGM;
+Int.S2.local.latcorr = Int.S2.local.latency - Int.Varianzkorrektur.LatSMminGM;
+Int.S6.local.peakcorr = Int.S6.local.value - Int.Varianzkorrektur.PeakSMminGM;
+Int.S6.local.latcorr = Int.S6.local.latency - Int.Varianzkorrektur.LatSMminGM;
+
+
+Int.A.peakmean = mean(Int.A.local.peakcorr);
+Int.A.peaksem = std(Int.A.local.peakcorr)/sqrt(Nsub);
+Int.A.latmean = mean(Int.A.local.latcorr);
+Int.A.latsem = std(Int.A.local.latcorr)/sqrt(Nsub);
+
+Int.S0.peakmean = mean(Int.S0.local.peakcorr);
+Int.S0.peaksem = std(Int.S0.local.peakcorr)/sqrt(Nsub);
+Int.S0.latmean = mean(Int.S0.local.latcorr);
+Int.S0.latsem = std(Int.S0.local.latcorr)/sqrt(Nsub);
+
+Int.S5.peakmean = mean(Int.S5.local.peakcorr);
+Int.S5.peaksem = std(Int.S5.local.peakcorr)/sqrt(Nsub);
+Int.S5.latmean = mean(Int.S5.local.latcorr);
+Int.S5.latsem = std(Int.S5.local.latcorr)/sqrt(Nsub);
+
+Int.S2.peakmean = mean(Int.S2.local.peakcorr);
+Int.S2.peaksem = std(Int.S2.local.peakcorr)/sqrt(Nsub);
+Int.S2.latmean = mean(Int.S2.local.latcorr);
+Int.S2.latsem = std(Int.S2.local.latcorr)/sqrt(Nsub);
+
+Int.S6.peakmean = mean(Int.S6.local.peakcorr);
+Int.S6.peaksem = std(Int.S6.local.peakcorr)/sqrt(Nsub);
+Int.S6.latmean = mean(Int.S6.local.latcorr);
+Int.S6.latsem = std(Int.S6.local.latcorr)/sqrt(Nsub);
+
+end
